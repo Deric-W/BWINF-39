@@ -36,10 +36,10 @@ argparser.add_argument(
 )
 
 
-class Candidates(Dict[str, Set[int]]):
+class Candidates(Dict[str, Set[str]]):  # Set hat eine effiziente Schnittmengenoperation
     """Repräsentation der Kandidaten"""
 
-    def add_skewer(self, fruits: Iterable[str], bowls: Iterable[int]) -> None:
+    def add_skewer(self, fruits: Iterable[str], bowls: Iterable[str]) -> None:
         """füge die Daten eines Spießes hinzu"""
         for fruit in fruits:
             try:
@@ -49,7 +49,7 @@ class Candidates(Dict[str, Set[int]]):
             else:
                 current_candidates &= frozenset(bowls)  # entferne Kandidaten, die für den neuen Spieß nicht in frage kommen
 
-    def add_skewers(self, skewers: Iterator[Tuple[Iterable[str], Iterable[int]]]) -> None:
+    def add_skewers(self, skewers: Iterator[Tuple[Iterable[str], Iterable[str]]]) -> None:
         """füge die Daten mehrerer Spieße hinzu"""
         for fruits, bowls in skewers:
             self.add_skewer(fruits, bowls)
@@ -67,39 +67,39 @@ class Candidates(Dict[str, Set[int]]):
                     if bowl in other_bowls:       # entferne unmöglichen Kandidaten
                         if len(other_bowls) < 2:  # andere Frucht ist auch eindeutig zugeordnet
                             raise ValueError(
-                                f"{fruit} und {other_fruit} sind beide eindeutig Schüssel {bowl} zugeordnet"
+                                f"{fruit} und {other_fruit} werden beide eineindeutig Schüssel {bowl} zugeordnet"
                             )
                         other_bowls.remove(bowl)    # kann die Frucht eindeutig machen
                         removed_candidate = True
 
-    def bowls(self, fruits: Iterable[str]) -> Set[int]:
-        """gebe die Schüsseln eine Menge von Früchten zurück"""
+    def bowls(self, wanted: Iterable[str]) -> Set[str]:
+        """gebe die Schüsseln einer Menge von Früchten zurück"""
         solution = set()
-        for fruit in fruits:
+        for fruit in wanted:
             try:
                 solution |= self[fruit]     # füge die Kandidaten der Frucht der Lösung hinzu
             except KeyError as e:
-                raise ValueError(f"Frucht {fruit} besitzt keine möglichen Schüsseln") from e
+                raise ValueError(f"Frucht {fruit} ist unbekannt") from e
         return solution
 
 
-def parse_input(file: TextIO) -> Tuple[List[str], Iterator[Tuple[List[str], List[int]]]]:
+def parse_input(file: TextIO) -> Tuple[List[str], Iterator[Tuple[List[str], List[str]]]]:
     """parse die bereitgestellte Datei und gebe die Wunschsorten und alle Spieße mit Schüsseln zurück"""
     _ = file.readline()                 # Anzahl der Früchte, nicht benötigt
     wanted = file.readline().split()    # Wunschsorten
     return wanted, parse_skewers(file, int(file.readline()))
 
 
-def parse_skewers(file: TextIO, skewers: int) -> Iterator[Tuple[List[str], List[int]]]:
+def parse_skewers(file: TextIO, skewers: int) -> Iterator[Tuple[List[str], List[str]]]:
     """parse die bereitgestellte Datei und gebe alle Spieße mit Schüsseln zurück"""
     for skewer in range(skewers):
-        bowls = file.readline().split()
-        fruits = file.readline().split()
+        bowls = file.readline().split()     # Schüsseln eines Spießes, durch Leerzeichen getrennt
+        fruits = file.readline().split()    # Früchte eines Spießes, durch Leerzeichen getrennt
         if len(bowls) != len(fruits):
             raise ValueError(
                 f"Anzahl der Früchte und Schüsseln bei Spieß {skewer} stimmen nicht überein"
             )
-        yield fruits, [int(bowl) for bowl in bowls]
+        yield fruits, bowls
 
 
 if __name__ == "__main__":
@@ -117,4 +117,4 @@ if __name__ == "__main__":
             f"Anzahl der Früchte ({len(wanted)}) stimmt nicht mit der der zu besuchenden Schüsseln ({len(solution)}) überein, "
             "es Fehlen weitere Daten"
         )
-    print(solution)
+    print("Zu besuchende Schüsseln:", ", ".join(solution))
