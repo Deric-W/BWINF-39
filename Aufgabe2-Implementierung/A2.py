@@ -2,10 +2,11 @@
 
 """Lösung für Aufgabe2 des 39. BWINF"""
 
+from __future__ import annotations
 import sys
 import argparse
 from itertools import chain
-from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar, MutableSequence, Sequence, MutableMapping, Mapping
+from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar, MutableSequence, MutableMapping, Mapping
 
 __version__ = "0.1"
 __author__ = "Eric Wolf"
@@ -49,21 +50,24 @@ class MissingDataError(ValueError):
     __slots__ = ()
 
 
-def filter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: MutableMapping[str, int]) -> Iterator[Mapping[str, int]]:
-    """Funktion, welche rekursiv für eine Menge an Kandidaten und Früchte unmögliche Kandidaten aussortiert"""
+def iter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: MutableMapping[str, int]) -> Iterator[Mapping[str, int]]:
+    """Funktion, welche rekursiv für eine Menge an Früchten mit Kandidaten mögliche Zuordnungen findet"""
+    # WARNUNG: die zurückgegebenen Zuordnungen stellen ein "Schnappschuss" des Mapping welches als 'used' übergeben wird dar.
+    #          Dies bedeutet, dass diese beim weiteriterieren verändert werden können.
+    #          Aus diesem Grund sollten die zurückgegebenen Mappings unverzüglich verwendet oder kopiert werden.
     try:
-        fruit, bowls = candidates.pop(0)
+        fruit, bowls = candidates.pop()    # entferne noch nicht vergebe Frucht, sie wird zugeordnet
     except IndexError:
-        yield used
+        yield used                          # alle Früchte vergeben, die aktuelle Kombination aus Früchten und Schüsseln ist möglich
     else:
-        for bowl in filter(lambda x: x not in used.values(), bowls):
-            used[fruit] = bowl
-            yield from filter_possible(candidates, used)
-            used.pop(fruit)
-        candidates.insert(0, (fruit, bowls))
+        for bowl in filter(lambda x: x not in used.values(), bowls):    # als Kandidaten kommen alle freien Schüsseln in Betracht
+            used[fruit] = bowl                                          # weise der Frucht ein Kandidat zu
+            yield from iter_possible(candidates, used)                # gebe alle Kombinationen zurück, welche mit dieser Zuordnung möglich sind
+            used.pop(fruit)                                             # entferne den Kandidaten wieder für den nächsten Durchlauf
+        candidates.append((fruit, bowls))    # füge die eigene Frucht wieder hinzu für den nächsten rekursiven Aufruf
 
 
-class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengenoperation
+class Candidates(Dict[str, Set[int]]):  # Set besitzt eine effiziente Schnittmengenoperation
     """Repräsentation der Kandidaten"""
     __slots__ = ("all_candidates",)
 
@@ -93,19 +97,22 @@ class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengeno
         unknown_candidates = self.all_candidates - set(chain.from_iterable(self.values()))   # alle Kandidaten - alle bereits vergebenen Kandidaten
         for fruit in fruits:
             if fruit not in self:   # Frucht kommt nicht in Tabelle vor
-                self[fruit] = unknown_candidates.copy()     # könnte modifiziert werden
+                self[fruit] = unknown_candidates.copy()     # könnte modifiziert werden, kopiere
 
-    def remove_impossible(self) -> None:
-        """entferne unmögliche Kandidaten"""
-        possible = {}
-        for combination in filter_possible(list(self.items()), {}):
-            for fruit, bowl in combination.items():
+    def strip_impossible(self) -> Candidates:
+        """gebe nur die Kandidaten zurück, für welche eine Zuordnung aller Früchte zu Schüsseln funktionieren würde"""
+        possible = Candidates(self.all_candidates)      # Untermenge von self welche nur mögliche Kandidaten enthält (momentan 0)
+        candidates = list(self.items())
+        candidates.sort(key=lambda item: len(item[1]), reverse=True)    # sorge für eine möglicherweise kürzere Laufzeit
+        for combination in iter_possible(candidates, {}):   # befülle die möglichen kandidaten
+            for fruit, bowl in combination.items():     # füge die zugeordnete Schüssel jeder Frucht deren möglichen Kandidaten hinzu
                 try:
                     possible[fruit].add(bowl)
                 except KeyError:
                     possible[fruit] = {bowl}
-        self.clear()
-        self.update(possible)
+        if len(possible) == 0:  # es gibt keine mögliche Zuordnungen, Fehler
+            raise InvalidDataError("Es gibt keine möglichen Zuordnungen von Früchten und Schüsseln, Daten fehlerhaft")
+        return possible
 
     def bowls(self, wanted: Iterable[str]) -> Set[int]:
         """gebe die Schüsseln einer Menge von Früchten zurück"""
@@ -140,11 +147,15 @@ if __name__ == "__main__":
     candidates = Candidates(all_bowls)
     candidates.add_skewers(skewers)
     candidates.add_unknown_fruits(wanted)
-    candidates.remove_impossible()
+    possible_candidates = candidates.strip_impossible()
     if args.debug:
+        print("Kandidaten:")
         for fruit, bowls in candidates.items():
             print(f"{fruit}: {bowls}")
-    solution = candidates.bowls(wanted)
+        print("mögliche Kandidaten:")
+        for fruit, bowls in possible_candidates.items():
+            print(f"{fruit}: {bowls}")
+    solution = possible_candidates.bowls(wanted)
     if len(solution) != len(wanted):    # Lösung enthält unerwünschte Früchte
         raise MissingDataError(
             f"es müssen mehr Schüsseln ({solution}) als gewünschte Früchte ({wanted}) besucht werden, "
