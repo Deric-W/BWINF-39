@@ -4,8 +4,8 @@
 
 import sys
 import argparse
-from itertools import chain, combinations
-from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar
+from itertools import chain
+from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar, MutableSequence, Sequence, MutableMapping, Mapping
 
 __version__ = "0.1"
 __author__ = "Eric Wolf"
@@ -49,10 +49,18 @@ class MissingDataError(ValueError):
     __slots__ = ()
 
 
-def powerset(set: Iterable[T]) -> Iterator[Tuple[T, ...]]:
-    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
-    s = list(set)
-    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
+def filter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: MutableMapping[str, int]) -> Iterator[Mapping[str, int]]:
+    """Funktion, welche rekursiv für eine Menge an Kandidaten und Früchte unmögliche Kandidaten aussortiert"""
+    try:
+        fruit, bowls = candidates.pop(0)
+    except IndexError:
+        yield used
+    else:
+        for bowl in filter(lambda x: x not in used.values(), bowls):
+            used[fruit] = bowl
+            yield from filter_possible(candidates, used)
+            used.pop(fruit)
+        candidates.insert(0, (fruit, bowls))
 
 
 class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengenoperation
@@ -89,23 +97,15 @@ class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengeno
 
     def remove_impossible(self) -> None:
         """entferne unmögliche Kandidaten"""
-        removed_candidate = True
-        while removed_candidate:        # entferne unmögliche Kandidaten, bis keine weiteren mehr gibt
-            removed_candidate = False   # im Falle eines Entfernes wird die Variable auf True gesetzt
-            for combination in powerset(self.keys()):   # teste alle Fruchtmengen
-                candidates = set()
-                for fruit in combination:               # bilde für jede Menge deren Kandidaten
-                    candidates |= self[fruit]
-                if len(combination) == len(candidates):  # wenn Kandidaten nur zur Kombination gehören können
-                    # ignoriere Früchte der Kombination, entferne die Kandidaten nur von anderen Früchten
-                    for fruit, other_candidates in filter(lambda item: item[0] not in combination, self.items()):
-                        l1 = len(other_candidates)
-                        other_candidates -= candidates
-                        l2 = len(other_candidates)
-                        if l2 == 0:     # es könnten nie alle Früchte zugeordnet werden
-                            raise InvalidDataError("es kann keine Lösung existieren, Daten fehlerhaft")
-                        elif l2 < l1:   # es wurden unmögliche Kandidaten entfernt
-                            removed_candidate = True
+        possible = {}
+        for combination in filter_possible(list(self.items()), {}):
+            for fruit, bowl in combination.items():
+                try:
+                    possible[fruit].add(bowl)
+                except KeyError:
+                    possible[fruit] = {bowl}
+        self.clear()
+        self.update(possible)
 
     def bowls(self, wanted: Iterable[str]) -> Set[int]:
         """gebe die Schüsseln einer Menge von Früchten zurück"""
