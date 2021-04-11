@@ -4,8 +4,8 @@
 
 import sys
 import argparse
-from itertools import chain
-from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable
+from itertools import chain, combinations
+from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar
 
 __version__ = "0.1"
 __author__ = "Eric Wolf"
@@ -36,6 +36,8 @@ argparser.add_argument(
     default=sys.stdin
 )
 
+T = TypeVar("T")
+
 
 class InvalidDataError(ValueError):
     """Fehler, welcher bei invaliden Daten ausgelöst wird"""
@@ -45,6 +47,12 @@ class InvalidDataError(ValueError):
 class MissingDataError(ValueError):
     """Fehler, welcher bei unvollständigen Daten ausgelöst wird"""
     __slots__ = ()
+
+
+def powerset(set: Iterable[T]) -> Iterator[Tuple[T, ...]]:
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(set)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
 
 
 class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengenoperation
@@ -71,34 +79,39 @@ class Candidates(Dict[str, Set[int]]):  # Set hat eine effiziente Schnittmengeno
         for fruits, bowls in skewers:
             self.add_skewer(fruits, bowls)
 
+    def add_unknown_fruits(self, fruits: Iterable[str]) -> None:
+        """füge eine Menge an Früchten hinzu, welche nicht in den Spießen vorkommen könnten"""
+        # Kandidaten für alle Früchte welche nicht in Spießen vorkommen
+        unknown_candidates = self.all_candidates - set(chain.from_iterable(self.values()))   # alle Kandidaten - alle bereits vergebenen Kandidaten
+        for fruit in fruits:
+            if fruit not in self:   # Frucht kommt nicht in Tabelle vor
+                self[fruit] = unknown_candidates.copy()     # könnte modifiziert werden
+
     def remove_impossible(self) -> None:
         """entferne unmögliche Kandidaten"""
         removed_candidate = True
         while removed_candidate:        # entferne unmögliche Kandidaten, bis keine weiteren mehr gibt
             removed_candidate = False   # im Falle eines Entfernes wird die Variable auf True gesetzt
-            for fruit, bowls in filter(lambda item: len(item[1]) == 1, self.items()):
-                # entferne alle Kandidaten, welche bereits eindeutig vergeben sind
-                bowl = tuple(bowls)[0]
-                # ignoriere beim Iterieren dich selbst
-                for other_fruit, other_bowls in filter(lambda item: item[0] != fruit, self.items()):
-                    if bowl in other_bowls:       # entferne unmöglichen Kandidaten
-                        if len(other_bowls) < 2:  # andere Frucht ist auch eindeutig zugeordnet
-                            raise InvalidDataError(
-                                f"{fruit} und {other_fruit} werden beide eineindeutig Schüssel {bowl} zugeordnet"
-                            )
-                        other_bowls.remove(bowl)    # kann die Frucht eindeutig machen
-                        removed_candidate = True
+            for combination in powerset(self.keys()):   # teste alle Fruchtmengen
+                candidates = set()
+                for fruit in combination:               # bilde für jede Menge deren Kandidaten
+                    candidates |= self[fruit]
+                if len(combination) == len(candidates):  # wenn Kandidaten nur zur Kombination gehören können
+                    # ignoriere Früchte der Kombination, entferne die Kandidaten nur von anderen Früchten
+                    for fruit, other_candidates in filter(lambda item: item[0] not in combination, self.items()):
+                        l1 = len(other_candidates)
+                        other_candidates -= candidates
+                        l2 = len(other_candidates)
+                        if l2 == 0:     # es könnten nie alle Früchte zugeordnet werden
+                            raise InvalidDataError("es kann keine Lösung existieren, Daten fehlerhaft")
+                        elif l2 < l1:   # es wurden unmögliche Kandidaten entfernt
+                            removed_candidate = True
 
     def bowls(self, wanted: Iterable[str]) -> Set[int]:
         """gebe die Schüsseln einer Menge von Früchten zurück"""
         solution = set()
-        # Kandidaten für alle Früchte welche nicht in Spießen vorkommen
-        unknown_candidates = self.all_candidates - set(chain(*self.values()))   # alle Kandidaten - alle bereits vergebenen Kandidaten
         for fruit in wanted:
-            try:
-                solution |= self[fruit]     # füge die Kandidaten der Frucht der Lösung hinzu
-            except KeyError:
-                solution |= unknown_candidates  # füge die noch nicht vergeben Kandidaten der Lösung hinzu
+            solution |= self[fruit]     # füge die Kandidaten der Frucht der Lösung hinzu
         return solution
 
 
@@ -126,6 +139,7 @@ if __name__ == "__main__":
     all_bowls, wanted, skewers = parse_input(args.Datei)
     candidates = Candidates(all_bowls)
     candidates.add_skewers(skewers)
+    candidates.add_unknown_fruits(wanted)
     candidates.remove_impossible()
     if args.debug:
         for fruit, bowls in candidates.items():
