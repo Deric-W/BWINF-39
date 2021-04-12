@@ -62,7 +62,7 @@ def iter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: Mutab
     else:
         for bowl in filter(lambda x: x not in used.values(), bowls):    # als Kandidaten kommen alle freien Schüsseln in Betracht
             used[fruit] = bowl                                          # weise der Frucht ein Kandidat zu
-            yield from iter_possible(candidates, used)                # gebe alle Kombinationen zurück, welche mit dieser Zuordnung möglich sind
+            yield from iter_possible(candidates, used)                  # gebe alle Kombinationen zurück, welche mit dieser Zuordnung möglich sind
             used.pop(fruit)                                             # entferne den Kandidaten wieder für den nächsten Durchlauf
         candidates.append((fruit, bowls))    # füge die eigene Frucht wieder hinzu für den nächsten rekursiven Aufruf
 
@@ -159,6 +159,6 @@ if __name__ == "__main__":
     if len(solution) != len(wanted):    # Lösung enthält unerwünschte Früchte
         raise MissingDataError(
             f"es müssen mehr Schüsseln ({solution}) als gewünschte Früchte ({wanted}) besucht werden, "
-            "es Fehlen weitere Daten"
+            "es fehlen weitere Daten"
         )
     print("Zu besuchende Schüsseln:", solution)
