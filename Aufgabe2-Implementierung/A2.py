@@ -50,20 +50,20 @@ class MissingDataError(ValueError):
     __slots__ = ()
 
 
-def iter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: MutableMapping[str, int]) -> Iterator[Mapping[str, int]]:
+def iter_possible(candidates: MutableSequence[Tuple[str, Set[int]]], used: MutableMapping[int, str]) -> Iterator[Mapping[int, str]]:
     """Funktion, welche rekursiv für eine Menge an Früchten mit Kandidaten mögliche Zuordnungen findet"""
     # WARNUNG: die zurückgegebenen Zuordnungen stellen ein "Schnappschuss" des Mapping welches als 'used' übergeben wird dar.
     #          Dies bedeutet, dass diese beim weiteriterieren verändert werden können.
     #          Aus diesem Grund sollten die zurückgegebenen Mappings unverzüglich verwendet oder kopiert werden.
     try:
-        fruit, bowls = candidates.pop()    # entferne noch nicht vergebe Frucht, sie wird zugeordnet
+        fruit, bowls = candidates.pop()     # entferne noch nicht vergebe Frucht, sie wird zugeordnet
     except IndexError:
         yield used                          # alle Früchte vergeben, die aktuelle Kombination aus Früchten und Schüsseln ist möglich
     else:
-        for bowl in filter(lambda x: x not in used.values(), bowls):    # als Kandidaten kommen alle freien Schüsseln in Betracht
-            used[fruit] = bowl                                          # weise der Frucht ein Kandidat zu
+        for bowl in filter(lambda x: x not in used, bowls):    # als Kandidaten kommen alle freien Schüsseln in Betracht
+            used[bowl] = fruit                                          # weise der Frucht ein Kandidat zu
             yield from iter_possible(candidates, used)                  # gebe alle Kombinationen zurück, welche mit dieser Zuordnung möglich sind
-            used.pop(fruit)                                             # entferne den Kandidaten wieder für den nächsten Durchlauf
+            used.pop(bowl)                                              # entferne den Kandidaten wieder für den nächsten Durchlauf
         candidates.append((fruit, bowls))    # füge die eigene Frucht wieder hinzu für den nächsten rekursiven Aufruf
 
 
@@ -105,7 +105,7 @@ class Candidates(Dict[str, Set[int]]):  # Set besitzt eine effiziente Schnittmen
         candidates = list(self.items())
         candidates.sort(key=lambda item: len(item[1]), reverse=True)    # sorge für eine möglicherweise kürzere Laufzeit
         for combination in iter_possible(candidates, {}):   # befülle die möglichen kandidaten
-            for fruit, bowl in combination.items():     # füge die zugeordnete Schüssel jeder Frucht deren möglichen Kandidaten hinzu
+            for bowl, fruit in combination.items():     # füge die zugeordnete Schüssel jeder Frucht deren möglichen Kandidaten hinzu
                 try:
                     possible[fruit].add(bowl)
                 except KeyError:
