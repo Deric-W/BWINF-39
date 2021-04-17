@@ -32,9 +32,9 @@ argparser.add_argument(
     action="store_true"
 )
 argparser.add_argument(
-    "-f",
-    "--fast",
-    help="benutze einen schnelleren Algorithmus",
+    "-a",
+    "--alternative",
+    help="benutze einen alternativen Algorithmus",
     action="store_true"
 )
 argparser.add_argument(
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     candidates = Candidates(all_bowls)
     candidates.add_skewers(skewers)
     candidates.add_unknown_fruits(wanted)
-    if args.fast:   # nicht unbedingt schneller, mehr in der Dokumentation
+    if args.alternative:   # nicht unbedingt schneller, mehr in der Dokumentation
         possible_candidates = candidates.strip_impossible2()
     else:
         possible_candidates = candidates.strip_impossible()
