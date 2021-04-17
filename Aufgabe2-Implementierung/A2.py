@@ -7,6 +7,8 @@ import sys
 import argparse
 from itertools import chain
 from typing import TextIO, Iterator, Tuple, List, Dict, Set, Iterable, TypeVar, MutableSequence, MutableMapping, Mapping
+import networkx
+import bipartitematching
 
 __version__ = "0.1"
 __author__ = "Eric Wolf"
@@ -27,6 +29,12 @@ argparser.add_argument(
     "-d",
     "--debug",
     help="zeige Kandidaten aller Früchte",
+    action="store_true"
+)
+argparser.add_argument(
+    "-f",
+    "--fast",
+    help="benutze einen schnelleren Algorithmus",
     action="store_true"
 )
 argparser.add_argument(
@@ -104,7 +112,7 @@ class Candidates(Dict[str, Set[int]]):  # Set besitzt eine effiziente Schnittmen
         possible = Candidates(self.all_candidates)      # Untermenge von self welche nur mögliche Kandidaten enthält (momentan 0)
         candidates = list(self.items())
         candidates.sort(key=lambda item: len(item[1]), reverse=True)    # sorge für eine möglicherweise kürzere Laufzeit
-        for combination in iter_possible(candidates, {}):   # befülle die möglichen kandidaten
+        for combination in iter_possible(candidates, {}):   # befülle die möglichen Kandidaten
             for bowl, fruit in combination.items():     # füge die zugeordnete Schüssel jeder Frucht deren möglichen Kandidaten hinzu
                 try:
                     possible[fruit].add(bowl)
@@ -112,6 +120,27 @@ class Candidates(Dict[str, Set[int]]):  # Set besitzt eine effiziente Schnittmen
                     possible[fruit] = {bowl}
         if len(possible) == 0:  # es gibt keine mögliche Zuordnungen, Fehler
             raise InvalidDataError("Es gibt keine möglichen Zuordnungen von Früchten und Schüsseln, Daten fehlerhaft")
+        return possible
+
+    def strip_impossible2(self) -> Candidates:
+        """alternative Implementierung mit anderem Algorithmus"""
+        possible = Candidates(self.all_candidates)      # Untermenge von self welche nur mögliche Kandidaten enthält (momentan 0)
+        graph = networkx.Graph()
+        graph.add_nodes_from(self.all_candidates, bipartite=1)  # füge alle Schüsseln als Knoten hinzu, sie bilden ein untereinander nicht verbundenes Set im Graphen
+        for fruit, candidates in self.items():
+            graph.add_node(fruit, bipartite=0)      # füge die Frucht als Knoten hinzu, die Früchte bilden das andere untereinander nicht verbundenene Set im Graphen
+            for bowl in candidates:
+                graph.add_edge(fruit, bowl)         # füge für jede Frucht Kanten zu ihren Kandidaten hinzu
+        for match in bipartitematching.enumMaximumMatching2(graph):     # befülle die möglichen Kandidaten
+            matched_fruits = 0
+            for fruit, bowl in match:       # füge die zugeordnete Schüssel jeder Frucht deren möglichen Kandidaten hinzu
+                try:
+                    possible[fruit].add(bowl)
+                except KeyError:
+                    possible[fruit] = {bowl}
+                matched_fruits += 1
+            if matched_fruits != len(self):     # es können nicht alle Früchte zugeordnet werden, Fehler
+                raise InvalidDataError("Es gibt keine möglichen Zuordnungen von Früchten und Schüsseln, Daten fehlerhaft")
         return possible
 
     def bowls(self, wanted: Iterable[str]) -> Set[int]:
@@ -147,7 +176,10 @@ if __name__ == "__main__":
     candidates = Candidates(all_bowls)
     candidates.add_skewers(skewers)
     candidates.add_unknown_fruits(wanted)
-    possible_candidates = candidates.strip_impossible()
+    if args.fast:   # nicht unbedingt schneller, mehr in der Dokumentation
+        possible_candidates = candidates.strip_impossible2()
+    else:
+        possible_candidates = candidates.strip_impossible()
     if args.debug:
         print("Kandidaten:")
         for fruit, bowls in candidates.items():
