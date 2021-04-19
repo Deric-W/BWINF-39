@@ -3,6 +3,7 @@
 """Lösung für Aufgabe 3 des 39. BWINF Stufe 2"""
 
 import sys
+from enum import Enum
 from argparse import ArgumentParser, FileType
 from itertools import combinations
 from typing import TextIO, Tuple, Iterator, Sequence, List
@@ -23,12 +24,6 @@ argparser.add_argument(
     default=3
 )
 argparser.add_argument(
-    "-b",
-    "--brute",
-    help="benutze die Brute-Force Implementierung",
-    action="store_true"
-)
-argparser.add_argument(
     "Datei",
     help="Datei mit Daten des Dorfes (beim Fehlen wird von der Standarteingabe gelesen)",
     type=FileType("r"),
@@ -42,6 +37,12 @@ def parse_input(file: TextIO) -> Tuple[int, Iterator[int]]:
     adresses = int(file.readline().split()[0])
     houses = map(int, file.readline().split())
     return adresses, houses
+
+
+class VoteResult(Enum):
+    ACCEPTED = 0
+    FAILED = 1
+    DRAW = 2
 
 
 class Village:
@@ -64,27 +65,35 @@ class Village:
             distances.append(distance1 if distance1 < distance2 else distance2)
         return min(distances)
 
-    def simulate_vote(self, position1: Sequence[int], position2: Sequence[int]) -> bool:
+    def simulate_vote(self, position1: Sequence[int], position2: Sequence[int]) -> VoteResult:
         """Simuliere eine Wahl zwischen zwei Positionen"""
         approved = 0    # Anzahl der Stimmen für position2
         for house in self.houses:
             if self.distance(house, position2) < self.distance(house, position1):
                 approved += 1
-        return approved > len(self.houses) / 2
+        half = len(self.houses) / 2
+        if approved > half:
+            return VoteResult.ACCEPTED
+        elif approved < half:
+            return VoteResult.FAILED
+        else:
+            return VoteResult.DRAW
 
     def positions(self, stalls: int) -> Iterator[Tuple[int, ...]]:
         """ermittle alle möglichen Positionierungen der Buden"""
         return combinations(range(self.adresses), stalls)   # Adressen sind 0 bis Adressen - 1
 
 
-def main1(positions: List[Tuple[int, ...]], village: Village, lazy: bool) -> None:
+def main(positions: List[Tuple[int, ...]], village: Village, lazy: bool) -> None:
     """Brute-Force Implementierung"""
     better_positions = [0] * len(positions)     # speichere für jede Positionierung die Anzahl an besseren Positionierungen
     for index1, position1 in enumerate(positions):
-        for index2, position2 in enumerate(positions[index1 + 1:]):     # teste alle Kombinationen
-            if village.simulate_vote(position1, position2):         # erhöhe die Anzahl an besseren Positionierungen des Verlierers um 1
+        next_index = index1 + 1
+        for index2, position2 in enumerate(positions[next_index:], start=next_index):     # teste alle Kombinationen
+            vote = village.simulate_vote(position1, position2)
+            if vote is VoteResult.ACCEPTED:        # erhöhe die Anzahl an besseren Positionierungen des Verlierers um 1
                 better_positions[index1] += 1
-            else:
+            elif vote is VoteResult.FAILED:
                 better_positions[index2] += 1
         if better_positions[index1] == 0:   # Positionierung ist stabil
             print("stabile Position:", position1)
@@ -92,16 +101,9 @@ def main1(positions: List[Tuple[int, ...]], village: Village, lazy: bool) -> Non
                 break
 
 
-def main2(positions: List[Tuple[int, ...]], village: Village, lazy: bool) -> None:
-    pass
-
-
 if __name__ == "__main__":
     args = argparser.parse_args()
     adresses, houses = parse_input(args.Datei)
     village = Village(adresses, list(houses))
     positions = list(village.positions(args.stalls))
-    if args.brute:
-        main1(positions, village, args.lazy)
-    else:
-        main2(positions, village, args.lazy)
+    main(positions, village, args.lazy)
