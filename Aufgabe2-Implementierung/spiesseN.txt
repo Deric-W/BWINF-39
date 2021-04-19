@@ -1,0 +1,11 @@
+8
+Weintraube Brombeere Apfel
+4
+1 4 5 8
+Apfel Banane Brombeere N
+3 5 6
+Banane Pflaume Weintraube
+1 2 4
+Apfel Brombeere Erdbeere
+2 6 7
+Erdbeere Pflaume N
