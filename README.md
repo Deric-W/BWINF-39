@@ -1,2 +1,2 @@
 # BWINF-39
-Solutions for the Bundeswettbewerb Informatik 2020/2021
+My submissions for the Bundeswettbewerb Informatik 2020/2021
